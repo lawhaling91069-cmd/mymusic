@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import Login from "./Login";
@@ -10,6 +10,27 @@ function Home({ user }) {
   const [songs, setSongs] = useState([]);
   const [currentSong, setCurrentSong] = useState(null);
   const [videoId, setVideoId] = useState(null);
+  function startTimer() {
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      if (playerRef.current) {
+        setCurrentTime(playerRef.current.getCurrentTime() || 0);
+        setDuration(playerRef.current.getDuration() || 0);
+      }
+    }, 1000);
+  }
+
+  function formatTime(secs) {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  }
+  const [isPlaying, setIsPlaying] = useState(false);
+  const playerRef = useRef(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const timerRef = useRef(null);
+  
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState("home");
   const [artist, setArtist] = useState(null);
@@ -58,8 +79,7 @@ function Home({ user }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#0a0a0a", color: "white", fontFamily: "sans-serif" }}>
 
-      {videoId && <YouTubePlayer videoId={videoId} />}
-
+      {videoId && <YouTubePlayer videoId={videoId} onReady={(p) => { playerRef.current = p; setIsPlaying(true); startTimer(); }} />}
       {/* TOP BAR */}
       <div style={{ background: "#121212", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px", position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid #222" }}>
         {page === "artist" && (
@@ -159,65 +179,71 @@ function Home({ user }) {
 
       </div>
 
-      {/* PLAYER BAR */}
+      
+    {/* PLAYER BAR */}
       {currentSong && (
-        <div style={{ position: "fixed", bottom: "60px", left: 0, right: 0, background: "linear-gradient(135deg, #1a1a2e 0%, #181818 100%)", borderTop: "1px solid #333", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
-          <img src={currentSong.artworkUrl100} alt={currentSong.trackName} style={{ width: "52px", height: "52px", borderRadius: "8px", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.trackName}</div>
-            <div style={{ fontSize: "12px", color: "#1db954", marginTop: "2px" }}>{currentSong.artistName}</div>
-            <div style={{ fontSize: "11px", color: "#aaa", marginTop: "2px" }}>
-              {videoId ? "▶ Playing full song from YouTube" : "Loading..."}
+        <div style={{ position: "fixed", bottom: "60px", left: 0, right: 0, background: "#181818", borderTop: "1px solid #222", padding: "10px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+
+          {/* TOP ROW */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+
+            {/* SONG IMAGE */}
+            <img
+              src={currentSong.artworkUrl100}
+              alt={currentSong.trackName}
+              style={{ width: "48px", height: "48px", borderRadius: "8px", flexShrink: 0 }}
+            />
+
+            {/* SONG INFO */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "14px", fontWeight: "600", color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.trackName}</div>
+              <div style={{ fontSize: "12px", color: "#1db954", marginTop: "2px" }}>{currentSong.artistName}</div>
             </div>
+
+            {/* CONTROLS */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+              <button
+                onClick={() => {
+                  if (isPlaying) {
+                    playerRef.current?.pauseVideo();
+                    setIsPlaying(false);
+                    clearInterval(timerRef.current);
+                  } else {
+                    playerRef.current?.playVideo();
+                    setIsPlaying(true);
+                    startTimer();
+                  }
+                }}
+                style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#1db954", border: "none", color: "black", fontSize: "18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {isPlaying ? "⏸" : "▶"}
+              </button>
+              <button
+                onClick={() => { setCurrentSong(null); setVideoId(null); setIsPlaying(false); setCurrentTime(0); setDuration(0); clearInterval(timerRef.current); }}
+                style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer" }}>
+                ✕
+              </button>
+            </div>
+
           </div>
+
+          {/* PROGRESS BAR ROW */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "11px", color: "#aaa", minWidth: "35px" }}>{formatTime(currentTime)}</span>
+            <div
+              style={{ flex: 1, height: "4px", background: "#333", borderRadius: "2px", cursor: "pointer", position: "relative" }}
+              onClick={(e) => {
+                const bar = e.currentTarget;
+                const rect = bar.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                const seekTo = percent * duration;
+                playerRef.current?.seekTo(seekTo, true);
+                setCurrentTime(seekTo);
+              }}
+            >
+              <div style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%`, height: "100%", background: "#1db954", borderRadius: "2px" }} />
+            </div>
+            <span style={{ fontSize: "11px", color: "#aaa", minWidth: "35px", textAlign: "right" }}>{formatTime(duration)}</span>
+          </div>
+
         </div>
       )}
-
-      {/* BOTTOM NAV */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: "60px", background: "#121212", borderTop: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "space-around" }}>
-        <div onClick={() => setPage("home")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", color: page === "home" ? "#1db954" : "#aaa" }}>
-          <span style={{ fontSize: "20px" }}>🏠</span>
-          <span style={{ fontSize: "10px" }}>Home</span>
-        </div>
-        <div onClick={() => setPage("search")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", color: page === "search" ? "#1db954" : "#aaa" }}>
-          <span style={{ fontSize: "20px" }}>🔍</span>
-          <span style={{ fontSize: "10px" }}>Search</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", color: "#aaa" }}>
-          <span style={{ fontSize: "20px" }}>📚</span>
-          <span style={{ fontSize: "10px" }}>Library</span>
-        </div>
-        <div onClick={() => setPage("profile")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", color: page === "profile" ? "#1db954" : "#aaa" }}>
-          <span style={{ fontSize: "20px" }}>👤</span>
-          <span style={{ fontSize: "10px" }}>Profile</span>
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
-function App() {
-  const [user, setUser] = useState(null);
-  const [page, setPage] = useState("login");
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setChecking(false);
-    });
-  }, []);
-
-  if (checking) return (
-    <div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <h2 style={{ color: "#1db954", fontFamily: "sans-serif" }}>🎵 Loading...</h2>
-    </div>
-  );
-
-  if (user) return <Home user={user} />;
-  if (page === "login") return <Login onLogin={() => {}} onSignup={() => setPage("signup")} />;
-  if (page === "signup") return <Signup onSignup={() => {}} onBack={() => setPage("login")} />;
-}
-
-export default App;

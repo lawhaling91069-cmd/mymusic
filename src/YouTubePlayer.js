@@ -1,41 +1,35 @@
 import { useEffect, useRef } from "react";
 
-function YouTubePlayer({ videoId }) {
-  const playerRef = useRef(null);
+function YouTubePlayer({ videoId, onReady }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     if (!videoId) return;
 
     function createPlayer() {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-      }
-      playerRef.current = new window.YT.Player(containerRef.current, {
+      const player = new window.YT.Player(containerRef.current, {
         height: "0",
         width: "0",
         videoId: videoId,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-        },
+        playerVars: { autoplay: 1, controls: 0 },
         events: {
-          onReady: (e) => e.target.playVideo(),
+          onReady: (e) => {
+            e.target.playVideo();
+            if (onReady) onReady(e.target);
+          },
         },
       });
+      return player;
     }
 
+    let player;
     if (window.YT && window.YT.Player) {
-      createPlayer();
+      player = createPlayer();
     } else {
-      window.onYouTubeIframeAPIReady = createPlayer;
+      window.onYouTubeIframeAPIReady = () => { player = createPlayer(); };
     }
 
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-      }
-    };
+    return () => { if (player) player.destroy(); };
   }, [videoId]);
 
   return <div ref={containerRef} />;
