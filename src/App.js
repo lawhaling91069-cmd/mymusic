@@ -34,6 +34,8 @@ function Home({ user }) {
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(null);
   const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [showFullPlayer, setShowFullPlayer] = useState(false);
+  const [relatedSongs, setRelatedSongs] = useState([]);
   const playerRef = useRef(null);
   const timerRef = useRef(null);
 
@@ -114,6 +116,13 @@ function Home({ user }) {
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
 
+ async function fetchRelated(song) {
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(song.artistName)}&media=music&limit=10`
+    );
+    const data = await res.json();
+    setRelatedSongs(data.results.filter((s) => s.trackId !== song.trackId));
+  }
   async function fetchAndPlay(song) {
     setCurrentSong(song);
     setVideoId(null);
@@ -126,6 +135,7 @@ function Home({ user }) {
     const data = await res.json();
     if (data.items && data.items.length > 0) {
       setVideoId(data.items[0].id.videoId);
+      fetchRelated(song);
     }
   }
 
@@ -466,9 +476,122 @@ function Home({ user }) {
       {/* PLAYER BAR */}
       {currentSong && (
         <div style={{ position: "fixed", bottom: "60px", left: 0, right: 0, background: "#181818", borderTop: "1px solid #222", padding: "10px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+          {/* FULL PLAYER */}
+          {showFullPlayer && (
+            <div style={{ position: "fixed", inset: 0, background: "#0a0a0a", zIndex: 200, display: "flex", flexDirection: "column", overflowY: "auto" }}>
 
-          {/* SONG INFO + CONTROLS */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* HEADER */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 20px 0" }}>
+                <button onClick={() => setShowFullPlayer(false)} style={{ background: "none", border: "none", color: "#aaa", fontSize: "24px", cursor: "pointer" }}>↓</button>
+                <p style={{ color: "#aaa", fontSize: "13px", fontWeight: "600" }}>Now Playing</p>
+                <div style={{ width: "24px" }} />
+              </div>
+
+              {/* BIG ARTWORK */}
+              <div style={{ padding: "32px 32px 24px", display: "flex", justifyContent: "center" }}>
+                <img
+                  src={currentSong.artworkUrl100.replace("100x100", "400x400")}
+                  alt={currentSong.trackName}
+                  style={{ width: "100%", maxWidth: "320px", borderRadius: "16px", boxShadow: "0 20px 60px rgba(0,0,0,0.8)" }}
+                />
+              </div>
+
+              {/* SONG INFO */}
+              <div style={{ padding: "0 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <h2 style={{ fontSize: "22px", fontWeight: "700", marginBottom: "4px" }}>{currentSong.trackName}</h2>
+                  <p style={{ color: "#1db954", fontSize: "15px" }}>{currentSong.artistName}</p>
+                </div>
+                <button onClick={() => toggleLike(currentSong)} style={{ background: "none", border: "none", fontSize: "28px", cursor: "pointer" }}>
+                  {isLiked(currentSong) ? "❤️" : "🤍"}
+                </button>
+              </div>
+
+              {/* PROGRESS BAR */}
+              <div style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                <span style={{ fontSize: "11px", color: "#aaa", minWidth: "35px" }}>{formatTime(currentTime)}</span>
+                <div
+                  style={{ flex: 1, height: "4px", background: "#333", borderRadius: "2px", cursor: "pointer" }}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    const seekTo = percent * duration;
+                    playerRef.current?.seekTo(seekTo, true);
+                    setCurrentTime(seekTo);
+                  }}
+                >
+                  <div style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%`, height: "100%", background: "#1db954", borderRadius: "2px" }} />
+                </div>
+                <span style={{ fontSize: "11px", color: "#aaa", minWidth: "35px", textAlign: "right" }}>{formatTime(duration)}</span>
+              </div>
+
+              {/* CONTROLS */}
+              <div style={{ padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+                <button onClick={() => setShuffle(!shuffle)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: shuffle ? "#1db954" : "#aaa" }}>🔀</button>
+                <button onClick={playPrev} style={{ background: "none", border: "none", color: "white", fontSize: "32px", cursor: "pointer" }}>⏮</button>
+                <button
+                  onClick={() => {
+                    if (isPlaying) {
+                      playerRef.current?.pauseVideo();
+                      setIsPlaying(false);
+                      clearInterval(timerRef.current);
+                    } else {
+                      playerRef.current?.playVideo();
+                      setIsPlaying(true);
+                      startTimer();
+                    }
+                  }}
+                  style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#1db954", border: "none", color: "black", fontSize: "24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {isPlaying ? "⏸" : "▶"}
+                </button>
+                <button onClick={playNext} style={{ background: "none", border: "none", color: "white", fontSize: "32px", cursor: "pointer" }}>⏭</button>
+                <button onClick={() => setRepeat(!repeat)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: repeat ? "#1db954" : "#aaa" }}>🔁</button>
+              </div>
+
+              {/* VOLUME */}
+              <div style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "32px" }}>
+                <span style={{ fontSize: "16px" }}>🔈</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={volume}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setVolume(v);
+                    playerRef.current?.setVolume(v);
+                  }}
+                  style={{ flex: 1, accentColor: "#1db954" }}
+                />
+                <span style={{ fontSize: "16px" }}>🔊</span>
+              </div>
+
+              {/* RELATED SONGS */}
+              <div style={{ padding: "0 20px 100px" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Related Songs</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {relatedSongs.map((song, index) => (
+                    <div
+                      key={song.trackId}
+                      onClick={() => playSong(song, relatedSongs)}
+                      style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", borderRadius: "8px", cursor: "pointer", background: currentSong?.trackId === song.trackId ? "#1db95422" : "transparent" }}
+                    >
+                      <img src={song.artworkUrl100} alt={song.trackName} style={{ width: "48px", height: "48px", borderRadius: "6px", flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: "500", fontSize: "14px", color: currentSong?.trackId === song.trackId ? "#1db954" : "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.trackName}</div>
+                        <div style={{ fontSize: "12px", color: "#aaa", marginTop: "2px" }}>{song.artistName}</div>
+                      </div>
+                      <span style={{ fontSize: "16px", color: "#aaa" }}>▶</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+      {/* SONG INFO + CONTROLS */}
+          <div onClick={() => setShowFullPlayer(true)} style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", flex: 1 }}>
             <img src={currentSong.artworkUrl100} alt={currentSong.trackName} style={{ width: "44px", height: "44px", borderRadius: "8px", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "13px", fontWeight: "600", color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.trackName}</div>
