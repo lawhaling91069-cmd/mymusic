@@ -9,6 +9,8 @@ function Home({ user }) {
   const [query, setQuery] = useState("");
   const [songs, setSongs] = useState([]);
   const [currentSong, setCurrentSong] = useState(null);
+  const [currentQueue, setCurrentQueue] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [videoId, setVideoId] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,6 +19,9 @@ function Home({ user }) {
   const [artistSongs, setArtistSongs] = useState([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(80);
+  const [shuffle, setShuffle] = useState(false);
+  const [repeat, setRepeat] = useState(false);
   const [likedSongs, setLikedSongs] = useState(() => {
     const saved = localStorage.getItem("likedSongs");
     return saved ? JSON.parse(saved) : [];
@@ -47,11 +52,7 @@ function Home({ user }) {
 
   function createPlaylist() {
     if (!newPlaylistName.trim()) return;
-    const newPlaylist = {
-      id: Date.now(),
-      name: newPlaylistName.trim(),
-      songs: [],
-    };
+    const newPlaylist = { id: Date.now(), name: newPlaylistName.trim(), songs: [] };
     const updated = [...playlists, newPlaylist];
     setPlaylists(updated);
     localStorage.setItem("playlists", JSON.stringify(updated));
@@ -96,8 +97,13 @@ function Home({ user }) {
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       if (playerRef.current) {
-        setCurrentTime(playerRef.current.getCurrentTime() || 0);
-        setDuration(playerRef.current.getDuration() || 0);
+        const ct = playerRef.current.getCurrentTime() || 0;
+        const dur = playerRef.current.getDuration() || 0;
+        setCurrentTime(ct);
+        setDuration(dur);
+        if (dur > 0 && ct >= dur - 1) {
+          playNext();
+        }
       }
     }, 1000);
   }
@@ -108,19 +114,7 @@ function Home({ user }) {
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
 
-  async function searchSongs() {
-    if (!query) return;
-    setLoading(true);
-    setPage("search");
-    const res = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`
-    );
-    const data = await res.json();
-    setSongs(data.results);
-    setLoading(false);
-  }
-
-  async function playSong(song) {
+  async function fetchAndPlay(song) {
     setCurrentSong(song);
     setVideoId(null);
     setCurrentTime(0);
@@ -133,6 +127,57 @@ function Home({ user }) {
     if (data.items && data.items.length > 0) {
       setVideoId(data.items[0].id.videoId);
     }
+  }
+
+  async function playSong(song, queue) {
+    const q = queue || currentQueue;
+    const idx = q.findIndex((s) => s.trackId === song.trackId);
+    setCurrentQueue(q);
+    setCurrentIndex(idx >= 0 ? idx : 0);
+    await fetchAndPlay(song);
+  }
+
+  function playNext() {
+    if (currentQueue.length === 0) return;
+    if (repeat) {
+      playerRef.current?.seekTo(0, true);
+      playerRef.current?.playVideo();
+      return;
+    }
+    let nextIndex;
+    if (shuffle) {
+      nextIndex = Math.floor(Math.random() * currentQueue.length);
+    } else {
+      nextIndex = currentIndex + 1;
+      if (nextIndex >= currentQueue.length) nextIndex = 0;
+    }
+    setCurrentIndex(nextIndex);
+    fetchAndPlay(currentQueue[nextIndex]);
+  }
+
+  function playPrev() {
+    if (currentQueue.length === 0) return;
+    let prevIndex;
+    if (shuffle) {
+      prevIndex = Math.floor(Math.random() * currentQueue.length);
+    } else {
+      prevIndex = currentIndex - 1;
+      if (prevIndex < 0) prevIndex = currentQueue.length - 1;
+    }
+    setCurrentIndex(prevIndex);
+    fetchAndPlay(currentQueue[prevIndex]);
+  }
+
+  async function searchSongs() {
+    if (!query) return;
+    setLoading(true);
+    setPage("search");
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`
+    );
+    const data = await res.json();
+    setSongs(data.results);
+    setLoading(false);
   }
 
   async function openArtist(song) {
@@ -160,15 +205,15 @@ function Home({ user }) {
     clearInterval(timerRef.current);
   }
 
-  function SongRow({ song, index, playlistId }) {
+  function SongRow({ song, index, queue, playlistId }) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", borderRadius: "8px", background: currentSong?.trackId === song.trackId ? "#1db95422" : "transparent" }}>
         {index !== undefined && (
           <div style={{ width: "20px", textAlign: "center", color: "#aaa", fontSize: "13px", flexShrink: 0 }}>{index + 1}</div>
         )}
-        <img src={song.artworkUrl100} alt={song.trackName} style={{ width: "48px", height: "48px", borderRadius: "6px", flexShrink: 0, cursor: "pointer" }} onClick={() => playSong(song)} />
+        <img src={song.artworkUrl100} alt={song.trackName} style={{ width: "48px", height: "48px", borderRadius: "6px", flexShrink: 0, cursor: "pointer" }} onClick={() => playSong(song, queue)} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div onClick={() => playSong(song)} style={{ fontWeight: "500", color: currentSong?.trackId === song.trackId ? "#1db954" : "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "14px", cursor: "pointer" }}>{song.trackName}</div>
+          <div onClick={() => playSong(song, queue)} style={{ fontWeight: "500", color: currentSong?.trackId === song.trackId ? "#1db954" : "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "14px", cursor: "pointer" }}>{song.trackName}</div>
           <div onClick={() => openArtist(song)} style={{ fontSize: "12px", color: "#1db954", marginTop: "2px", cursor: "pointer" }}>{song.artistName} →</div>
         </div>
         <button onClick={() => toggleLike(song)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", flexShrink: 0 }}>
@@ -178,7 +223,7 @@ function Home({ user }) {
         {playlistId && (
           <button onClick={() => removeFromPlaylist(playlistId, song.trackId)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", flexShrink: 0 }}>🗑️</button>
         )}
-        <div onClick={() => playSong(song)} style={{ fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>▶</div>
+        <div onClick={() => playSong(song, queue)} style={{ fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>▶</div>
       </div>
     );
   }
@@ -187,7 +232,15 @@ function Home({ user }) {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#0a0a0a", color: "white", fontFamily: "sans-serif" }}>
 
       {videoId && (
-        <YouTubePlayer videoId={videoId} onReady={(p) => { playerRef.current = p; setIsPlaying(true); startTimer(); }} />
+        <YouTubePlayer
+          videoId={videoId}
+          onReady={(p) => {
+            playerRef.current = p;
+            p.setVolume(volume);
+            setIsPlaying(true);
+            startTimer();
+          }}
+        />
       )}
 
       {/* ADD TO PLAYLIST MODAL */}
@@ -234,11 +287,11 @@ function Home({ user }) {
 
       {/* TOP BAR */}
       <div style={{ background: "#121212", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px", position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid #222" }}>
-        {(page === "artist" || page === "playlist") && (
-          <button onClick={() => { setPage(page === "playlist" ? "library" : "search"); }} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer", flexShrink: 0 }}>←</button>
+        {(page === "artist" || page === "playlist" || page === "liked") && (
+          <button onClick={() => setPage(page === "artist" ? "search" : "library")} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer", flexShrink: 0 }}>←</button>
         )}
         <h2 style={{ color: "#1db954", fontSize: "20px", margin: 0, flexShrink: 0 }}>🎵 MyMusic</h2>
-        {page !== "artist" && page !== "playlist" && (
+        {page !== "artist" && page !== "playlist" && page !== "liked" && (
           <>
             <input
               type="text"
@@ -254,7 +307,7 @@ function Home({ user }) {
       </div>
 
       {/* MAIN CONTENT */}
-      <div style={{ flex: 1, padding: "20px 16px", paddingBottom: currentSong ? "160px" : "80px" }}>
+      <div style={{ flex: 1, padding: "20px 16px", paddingBottom: currentSong ? "180px" : "80px" }}>
 
         {/* HOME */}
         {page === "home" && (
@@ -292,7 +345,7 @@ function Home({ user }) {
             <h2 style={{ fontSize: "18px", marginBottom: "16px" }}>{loading ? "Searching..." : `Results for "${query}"`}</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               {songs.map((song, index) => (
-                <SongRow key={song.trackId} song={song} index={index} />
+                <SongRow key={song.trackId} song={song} index={index} queue={songs} />
               ))}
             </div>
           </div>
@@ -303,8 +356,6 @@ function Home({ user }) {
           <div>
             <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px" }}>📚 Your Library</h1>
             <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "24px" }}>{playlists.length} playlists</p>
-
-            {/* LIKED SONGS */}
             <div onClick={() => setPage("liked")} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#1a0a2e", borderRadius: "12px", cursor: "pointer", marginBottom: "12px" }}>
               <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "#2e1a4e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" }}>❤️</div>
               <div>
@@ -312,8 +363,6 @@ function Home({ user }) {
                 <div style={{ fontSize: "13px", color: "#aaa", marginTop: "2px" }}>{likedSongs.length} songs</div>
               </div>
             </div>
-
-            {/* PLAYLISTS */}
             {playlists.map((playlist) => (
               <div key={playlist.id} onClick={() => { setSelectedPlaylist(playlist); setPage("playlist"); }} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#121212", borderRadius: "12px", cursor: "pointer", marginBottom: "8px" }}>
                 <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "#1a2e1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" }}>🎵</div>
@@ -323,8 +372,6 @@ function Home({ user }) {
                 </div>
               </div>
             ))}
-
-            {/* CREATE PLAYLIST BUTTON */}
             <div onClick={() => setShowPlaylistModal(true)} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#121212", borderRadius: "12px", cursor: "pointer", border: "1px dashed #333", marginTop: "8px" }}>
               <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" }}>➕</div>
               <div style={{ fontWeight: "600", fontSize: "15px", color: "#1db954" }}>Create Playlist</div>
@@ -332,16 +379,11 @@ function Home({ user }) {
           </div>
         )}
 
-        {/* LIKED SONGS PAGE */}
+        {/* LIKED SONGS */}
         {page === "liked" && (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-              <button onClick={() => setPage("library")} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer" }}>←</button>
-              <div>
-                <h1 style={{ fontSize: "22px", fontWeight: "700" }}>❤️ Liked Songs</h1>
-                <p style={{ color: "#aaa", fontSize: "13px" }}>{likedSongs.length} songs</p>
-              </div>
-            </div>
+            <h1 style={{ fontSize: "22px", fontWeight: "700", marginBottom: "4px" }}>❤️ Liked Songs</h1>
+            <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "24px" }}>{likedSongs.length} songs</p>
             {likedSongs.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0" }}>
                 <p style={{ fontSize: "40px", marginBottom: "16px" }}>🤍</p>
@@ -349,7 +391,7 @@ function Home({ user }) {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {likedSongs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} />)}
+                {likedSongs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} queue={likedSongs} />)}
               </div>
             )}
           </div>
@@ -363,18 +405,17 @@ function Home({ user }) {
               <div style={{ flex: 1 }}>
                 <h1 style={{ fontSize: "22px", fontWeight: "700", marginBottom: "4px" }}>{selectedPlaylist.name}</h1>
                 <p style={{ color: "#aaa", fontSize: "13px" }}>{selectedPlaylist.songs.length} songs</p>
-                <button onClick={() => deletePlaylist(selectedPlaylist.id)} style={{ marginTop: "8px", background: "none", border: "1px solid #333", color: "#aaa", padding: "6px 14px", borderRadius: "50px", fontSize: "12px", cursor: "pointer" }}>🗑️ Delete Playlist</button>
+                <button onClick={() => deletePlaylist(selectedPlaylist.id)} style={{ marginTop: "8px", background: "none", border: "1px solid #333", color: "#aaa", padding: "6px 14px", borderRadius: "50px", fontSize: "12px", cursor: "pointer" }}>🗑️ Delete</button>
               </div>
             </div>
             {selectedPlaylist.songs.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0" }}>
                 <p style={{ fontSize: "40px", marginBottom: "16px" }}>🎵</p>
-                <p style={{ color: "#aaa", fontSize: "15px" }}>No songs yet!</p>
-                <p style={{ color: "#555", fontSize: "13px", marginTop: "8px" }}>Press ➕ on any song to add it here</p>
+                <p style={{ color: "#aaa" }}>No songs yet! Press ➕ on any song.</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {selectedPlaylist.songs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} playlistId={selectedPlaylist.id} />)}
+                {selectedPlaylist.songs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} queue={selectedPlaylist.songs} playlistId={selectedPlaylist.id} />)}
               </div>
             )}
           </div>
@@ -386,7 +427,7 @@ function Home({ user }) {
             <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px", padding: "20px", background: "#121212", borderRadius: "12px" }}>
               <img src={artist.artworkUrl100} alt={artist.artistName} style={{ width: "80px", height: "80px", borderRadius: "50%", flexShrink: 0 }} />
               <div>
-                <p style={{ fontSize: "12px", color: "#aaa", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Artist</p>
+                <p style={{ fontSize: "12px", color: "#aaa", marginBottom: "4px", textTransform: "uppercase" }}>Artist</p>
                 <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px" }}>{artist.artistName}</h1>
                 <p style={{ fontSize: "13px", color: "#aaa" }}>{artistSongs.length} songs</p>
               </div>
@@ -394,7 +435,7 @@ function Home({ user }) {
             <h2 style={{ fontSize: "16px", marginBottom: "16px" }}>Popular Songs</h2>
             {loading ? <p style={{ color: "#aaa" }}>Loading...</p> : (
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {artistSongs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} />)}
+                {artistSongs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} queue={artistSongs} />)}
               </div>
             )}
           </div>
@@ -425,16 +466,19 @@ function Home({ user }) {
       {/* PLAYER BAR */}
       {currentSong && (
         <div style={{ position: "fixed", bottom: "60px", left: 0, right: 0, background: "#181818", borderTop: "1px solid #222", padding: "10px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <img src={currentSong.artworkUrl100} alt={currentSong.trackName} style={{ width: "48px", height: "48px", borderRadius: "8px", flexShrink: 0 }} />
+
+          {/* SONG INFO + CONTROLS */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <img src={currentSong.artworkUrl100} alt={currentSong.trackName} style={{ width: "44px", height: "44px", borderRadius: "8px", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: "14px", fontWeight: "600", color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.trackName}</div>
-              <div style={{ fontSize: "12px", color: "#1db954", marginTop: "2px" }}>{currentSong.artistName}</div>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentSong.trackName}</div>
+              <div style={{ fontSize: "11px", color: "#1db954", marginTop: "2px" }}>{currentSong.artistName}</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-              <button onClick={() => toggleLike(currentSong)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+              <button onClick={() => toggleLike(currentSong)} style={{ background: "none", border: "none", fontSize: "16px", cursor: "pointer" }}>
                 {isLiked(currentSong) ? "❤️" : "🤍"}
               </button>
+              <button onClick={playPrev} style={{ background: "none", border: "none", color: "#aaa", fontSize: "18px", cursor: "pointer" }}>⏮</button>
               <button
                 onClick={() => {
                   if (isPlaying) {
@@ -447,14 +491,17 @@ function Home({ user }) {
                     startTimer();
                   }
                 }}
-                style={{ width: "44px", height: "44px", borderRadius: "50%", background: "#1db954", border: "none", color: "black", fontSize: "18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#1db954", border: "none", color: "black", fontSize: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {isPlaying ? "⏸" : "▶"}
               </button>
-              <button onClick={stopSong} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer" }}>✕</button>
+              <button onClick={playNext} style={{ background: "none", border: "none", color: "#aaa", fontSize: "18px", cursor: "pointer" }}>⏭</button>
+              <button onClick={stopSong} style={{ background: "none", border: "none", color: "#aaa", fontSize: "16px", cursor: "pointer" }}>✕</button>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "11px", color: "#aaa", minWidth: "35px" }}>{formatTime(currentTime)}</span>
+
+          {/* PROGRESS BAR */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "10px", color: "#aaa", minWidth: "30px" }}>{formatTime(currentTime)}</span>
             <div
               style={{ flex: 1, height: "4px", background: "#333", borderRadius: "2px", cursor: "pointer" }}
               onClick={(e) => {
@@ -467,8 +514,38 @@ function Home({ user }) {
             >
               <div style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%`, height: "100%", background: "#1db954", borderRadius: "2px" }} />
             </div>
-            <span style={{ fontSize: "11px", color: "#aaa", minWidth: "35px", textAlign: "right" }}>{formatTime(duration)}</span>
+            <span style={{ fontSize: "10px", color: "#aaa", minWidth: "30px", textAlign: "right" }}>{formatTime(duration)}</span>
           </div>
+
+          {/* BOTTOM CONTROLS — SHUFFLE, REPEAT, VOLUME */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              onClick={() => setShuffle(!shuffle)}
+              style={{ background: "none", border: "none", fontSize: "14px", cursor: "pointer", color: shuffle ? "#1db954" : "#aaa" }}>
+              🔀 {shuffle ? "On" : "Off"}
+            </button>
+            <button
+              onClick={() => setRepeat(!repeat)}
+              style={{ background: "none", border: "none", fontSize: "14px", cursor: "pointer", color: repeat ? "#1db954" : "#aaa" }}>
+              🔁 {repeat ? "On" : "Off"}
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1 }}>
+              <span style={{ fontSize: "14px" }}>🔊</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setVolume(v);
+                  playerRef.current?.setVolume(v);
+                }}
+                style={{ flex: 1, accentColor: "#1db954" }}
+              />
+            </div>
+          </div>
+
         </div>
       )}
 
