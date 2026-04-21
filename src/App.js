@@ -21,15 +21,21 @@ function Home({ user }) {
     const saved = localStorage.getItem("likedSongs");
     return saved ? JSON.parse(saved) : [];
   });
+  const [playlists, setPlaylists] = useState(() => {
+    const saved = localStorage.getItem("playlists");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [showAddToPlaylist, setShowAddToPlaylist] = useState(null);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
   const playerRef = useRef(null);
   const timerRef = useRef(null);
 
   function toggleLike(song) {
     setLikedSongs((prev) => {
       const exists = prev.find((s) => s.trackId === song.trackId);
-      const updated = exists
-        ? prev.filter((s) => s.trackId !== song.trackId)
-        : [...prev, song];
+      const updated = exists ? prev.filter((s) => s.trackId !== song.trackId) : [...prev, song];
       localStorage.setItem("likedSongs", JSON.stringify(updated));
       return updated;
     });
@@ -37,6 +43,53 @@ function Home({ user }) {
 
   function isLiked(song) {
     return likedSongs.some((s) => s.trackId === song.trackId);
+  }
+
+  function createPlaylist() {
+    if (!newPlaylistName.trim()) return;
+    const newPlaylist = {
+      id: Date.now(),
+      name: newPlaylistName.trim(),
+      songs: [],
+    };
+    const updated = [...playlists, newPlaylist];
+    setPlaylists(updated);
+    localStorage.setItem("playlists", JSON.stringify(updated));
+    setNewPlaylistName("");
+    setShowPlaylistModal(false);
+  }
+
+  function addToPlaylist(playlistId, song) {
+    const updated = playlists.map((p) => {
+      if (p.id === playlistId) {
+        const exists = p.songs.find((s) => s.trackId === song.trackId);
+        if (exists) return p;
+        return { ...p, songs: [...p.songs, song] };
+      }
+      return p;
+    });
+    setPlaylists(updated);
+    localStorage.setItem("playlists", JSON.stringify(updated));
+    setShowAddToPlaylist(null);
+  }
+
+  function removeFromPlaylist(playlistId, songId) {
+    const updated = playlists.map((p) => {
+      if (p.id === playlistId) {
+        return { ...p, songs: p.songs.filter((s) => s.trackId !== songId) };
+      }
+      return p;
+    });
+    setPlaylists(updated);
+    localStorage.setItem("playlists", JSON.stringify(updated));
+  }
+
+  function deletePlaylist(playlistId) {
+    const updated = playlists.filter((p) => p.id !== playlistId);
+    setPlaylists(updated);
+    localStorage.setItem("playlists", JSON.stringify(updated));
+    setSelectedPlaylist(null);
+    setPage("library");
   }
 
   function startTimer() {
@@ -107,7 +160,7 @@ function Home({ user }) {
     clearInterval(timerRef.current);
   }
 
-  function SongRow({ song, index }) {
+  function SongRow({ song, index, playlistId }) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", borderRadius: "8px", background: currentSong?.trackId === song.trackId ? "#1db95422" : "transparent" }}>
         {index !== undefined && (
@@ -118,11 +171,13 @@ function Home({ user }) {
           <div onClick={() => playSong(song)} style={{ fontWeight: "500", color: currentSong?.trackId === song.trackId ? "#1db954" : "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "14px", cursor: "pointer" }}>{song.trackName}</div>
           <div onClick={() => openArtist(song)} style={{ fontSize: "12px", color: "#1db954", marginTop: "2px", cursor: "pointer" }}>{song.artistName} →</div>
         </div>
-        <button
-          onClick={() => toggleLike(song)}
-          style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", flexShrink: 0 }}>
+        <button onClick={() => toggleLike(song)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", flexShrink: 0 }}>
           {isLiked(song) ? "❤️" : "🤍"}
         </button>
+        <button onClick={() => setShowAddToPlaylist(song)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", flexShrink: 0 }}>➕</button>
+        {playlistId && (
+          <button onClick={() => removeFromPlaylist(playlistId, song.trackId)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", flexShrink: 0 }}>🗑️</button>
+        )}
         <div onClick={() => playSong(song)} style={{ fontSize: "18px", flexShrink: 0, cursor: "pointer" }}>▶</div>
       </div>
     );
@@ -132,23 +187,58 @@ function Home({ user }) {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#0a0a0a", color: "white", fontFamily: "sans-serif" }}>
 
       {videoId && (
-        <YouTubePlayer
-          videoId={videoId}
-          onReady={(p) => {
-            playerRef.current = p;
-            setIsPlaying(true);
-            startTimer();
-          }}
-        />
+        <YouTubePlayer videoId={videoId} onReady={(p) => { playerRef.current = p; setIsPlaying(true); startTimer(); }} />
+      )}
+
+      {/* ADD TO PLAYLIST MODAL */}
+      {showAddToPlaylist && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#1a1a1a", borderRadius: "16px", padding: "24px", width: "100%", maxWidth: "360px" }}>
+            <h3 style={{ marginBottom: "16px", fontSize: "18px" }}>Add to Playlist</h3>
+            {playlists.length === 0 ? (
+              <p style={{ color: "#aaa", fontSize: "14px", marginBottom: "16px" }}>No playlists yet. Create one first!</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+                {playlists.map((p) => (
+                  <div key={p.id} onClick={() => addToPlaylist(p.id, showAddToPlaylist)} style={{ padding: "12px 16px", background: "#252525", borderRadius: "8px", cursor: "pointer", fontSize: "14px" }}>
+                    🎵 {p.name} ({p.songs.length} songs)
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setShowAddToPlaylist(null)} style={{ width: "100%", padding: "12px", borderRadius: "50px", border: "1px solid #333", background: "transparent", color: "white", fontSize: "14px", cursor: "pointer" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE PLAYLIST MODAL */}
+      {showPlaylistModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#1a1a1a", borderRadius: "16px", padding: "24px", width: "100%", maxWidth: "360px" }}>
+            <h3 style={{ marginBottom: "16px", fontSize: "18px" }}>Create Playlist</h3>
+            <input
+              type="text"
+              placeholder="Playlist name..."
+              value={newPlaylistName}
+              onChange={(e) => setNewPlaylistName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createPlaylist()}
+              style={{ width: "100%", padding: "12px 16px", borderRadius: "8px", border: "1px solid #333", background: "#252525", color: "white", fontSize: "14px", outline: "none", marginBottom: "16px" }}
+            />
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={() => setShowPlaylistModal(false)} style={{ flex: 1, padding: "12px", borderRadius: "50px", border: "1px solid #333", background: "transparent", color: "white", fontSize: "14px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={createPlaylist} style={{ flex: 1, padding: "12px", borderRadius: "50px", border: "none", background: "#1db954", color: "black", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>Create</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* TOP BAR */}
       <div style={{ background: "#121212", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px", position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid #222" }}>
-        {page === "artist" && (
-          <button onClick={() => setPage("search")} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer", flexShrink: 0 }}>←</button>
+        {(page === "artist" || page === "playlist") && (
+          <button onClick={() => { setPage(page === "playlist" ? "library" : "search"); }} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer", flexShrink: 0 }}>←</button>
         )}
         <h2 style={{ color: "#1db954", fontSize: "20px", margin: 0, flexShrink: 0 }}>🎵 MyMusic</h2>
-        {page !== "artist" && (
+        {page !== "artist" && page !== "playlist" && (
           <>
             <input
               type="text"
@@ -166,12 +256,11 @@ function Home({ user }) {
       {/* MAIN CONTENT */}
       <div style={{ flex: 1, padding: "20px 16px", paddingBottom: currentSong ? "160px" : "80px" }}>
 
-       {/* HOME */}
+        {/* HOME */}
         {page === "home" && (
           <div>
             <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px" }}>Good evening 👋</h1>
             <p style={{ color: "#aaa", fontSize: "14px", marginBottom: "24px" }}>What do you want to listen to today?</p>
-            {/* CATEGORIES */}
             <h2 style={{ fontSize: "16px", marginBottom: "16px" }}>🔥 Top Charts</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "32px" }}>
               {[
@@ -182,18 +271,12 @@ function Home({ user }) {
                 { name: "Rock", emoji: "🎸", color: "#2e2a0a", query: "rock hits" },
                 { name: "K-Pop", emoji: "⭐", color: "#0a2e1a", query: "kpop hits 2024" },
               ].map((cat) => (
-                <div
-                  key={cat.name}
-                  onClick={() => { setQuery(cat.query); setTimeout(() => searchSongs(), 100); }}
-                  style={{ background: cat.color, border: "1px solid #333", borderRadius: "12px", padding: "20px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px" }}
-                >
+                <div key={cat.name} onClick={() => { setQuery(cat.query); setTimeout(() => searchSongs(), 100); }} style={{ background: cat.color, border: "1px solid #333", borderRadius: "12px", padding: "20px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ fontSize: "28px" }}>{cat.emoji}</span>
                   <span style={{ fontSize: "14px", fontWeight: "600" }}>{cat.name}</span>
                 </div>
               ))}
             </div>
-
-            {/* QUICK SEARCH */}
             <h2 style={{ fontSize: "16px", marginBottom: "16px" }}>🎤 Popular Artists</h2>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
               {["Adele", "Taylor Swift", "Drake", "BTS", "Ed Sheeran", "Billie Eilish", "The Weeknd", "Ariana Grande"].map((a) => (
@@ -215,22 +298,83 @@ function Home({ user }) {
           </div>
         )}
 
-        {/* LIBRARY — LIKED SONGS */}
+        {/* LIBRARY */}
         {page === "library" && (
           <div>
-            <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px" }}>❤️ Liked Songs</h1>
-            <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "24px" }}>{likedSongs.length} songs</p>
+            <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px" }}>📚 Your Library</h1>
+            <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "24px" }}>{playlists.length} playlists</p>
+
+            {/* LIKED SONGS */}
+            <div onClick={() => setPage("liked")} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#1a0a2e", borderRadius: "12px", cursor: "pointer", marginBottom: "12px" }}>
+              <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "#2e1a4e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" }}>❤️</div>
+              <div>
+                <div style={{ fontWeight: "600", fontSize: "15px" }}>Liked Songs</div>
+                <div style={{ fontSize: "13px", color: "#aaa", marginTop: "2px" }}>{likedSongs.length} songs</div>
+              </div>
+            </div>
+
+            {/* PLAYLISTS */}
+            {playlists.map((playlist) => (
+              <div key={playlist.id} onClick={() => { setSelectedPlaylist(playlist); setPage("playlist"); }} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#121212", borderRadius: "12px", cursor: "pointer", marginBottom: "8px" }}>
+                <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "#1a2e1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" }}>🎵</div>
+                <div>
+                  <div style={{ fontWeight: "600", fontSize: "15px" }}>{playlist.name}</div>
+                  <div style={{ fontSize: "13px", color: "#aaa", marginTop: "2px" }}>{playlist.songs.length} songs</div>
+                </div>
+              </div>
+            ))}
+
+            {/* CREATE PLAYLIST BUTTON */}
+            <div onClick={() => setShowPlaylistModal(true)} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "16px", background: "#121212", borderRadius: "12px", cursor: "pointer", border: "1px dashed #333", marginTop: "8px" }}>
+              <div style={{ width: "52px", height: "52px", borderRadius: "8px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px" }}>➕</div>
+              <div style={{ fontWeight: "600", fontSize: "15px", color: "#1db954" }}>Create Playlist</div>
+            </div>
+          </div>
+        )}
+
+        {/* LIKED SONGS PAGE */}
+        {page === "liked" && (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+              <button onClick={() => setPage("library")} style={{ background: "none", border: "none", color: "#aaa", fontSize: "20px", cursor: "pointer" }}>←</button>
+              <div>
+                <h1 style={{ fontSize: "22px", fontWeight: "700" }}>❤️ Liked Songs</h1>
+                <p style={{ color: "#aaa", fontSize: "13px" }}>{likedSongs.length} songs</p>
+              </div>
+            </div>
             {likedSongs.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0" }}>
                 <p style={{ fontSize: "40px", marginBottom: "16px" }}>🤍</p>
                 <p style={{ color: "#aaa", fontSize: "15px" }}>No liked songs yet!</p>
-                <p style={{ color: "#555", fontSize: "13px", marginTop: "8px" }}>Press ❤️ on any song to save it here</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {likedSongs.map((song, index) => (
-                  <SongRow key={song.trackId} song={song} index={index} />
-                ))}
+                {likedSongs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} />)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PLAYLIST PAGE */}
+        {page === "playlist" && selectedPlaylist && (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px", padding: "20px", background: "#121212", borderRadius: "12px" }}>
+              <div style={{ width: "80px", height: "80px", borderRadius: "12px", background: "#1a2e1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "36px" }}>🎵</div>
+              <div style={{ flex: 1 }}>
+                <h1 style={{ fontSize: "22px", fontWeight: "700", marginBottom: "4px" }}>{selectedPlaylist.name}</h1>
+                <p style={{ color: "#aaa", fontSize: "13px" }}>{selectedPlaylist.songs.length} songs</p>
+                <button onClick={() => deletePlaylist(selectedPlaylist.id)} style={{ marginTop: "8px", background: "none", border: "1px solid #333", color: "#aaa", padding: "6px 14px", borderRadius: "50px", fontSize: "12px", cursor: "pointer" }}>🗑️ Delete Playlist</button>
+              </div>
+            </div>
+            {selectedPlaylist.songs.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px 0" }}>
+                <p style={{ fontSize: "40px", marginBottom: "16px" }}>🎵</p>
+                <p style={{ color: "#aaa", fontSize: "15px" }}>No songs yet!</p>
+                <p style={{ color: "#555", fontSize: "13px", marginTop: "8px" }}>Press ➕ on any song to add it here</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {selectedPlaylist.songs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} playlistId={selectedPlaylist.id} />)}
               </div>
             )}
           </div>
@@ -250,9 +394,7 @@ function Home({ user }) {
             <h2 style={{ fontSize: "16px", marginBottom: "16px" }}>Popular Songs</h2>
             {loading ? <p style={{ color: "#aaa" }}>Loading...</p> : (
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {artistSongs.map((song, index) => (
-                  <SongRow key={song.trackId} song={song} index={index} />
-                ))}
+                {artistSongs.map((song, index) => <SongRow key={song.trackId} song={song} index={index} />)}
               </div>
             )}
           </div>
@@ -264,9 +406,15 @@ function Home({ user }) {
             <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "#1db954", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px" }}>👤</div>
             <h2 style={{ fontSize: "20px", fontWeight: "700" }}>{user.email}</h2>
             <p style={{ color: "#aaa", fontSize: "13px" }}>Member of MyMusic</p>
-            <div style={{ marginTop: "16px", background: "#121212", borderRadius: "12px", padding: "16px 24px", textAlign: "center" }}>
-              <p style={{ fontSize: "24px", fontWeight: "700", color: "#1db954" }}>{likedSongs.length}</p>
-              <p style={{ fontSize: "13px", color: "#aaa" }}>Liked Songs</p>
+            <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
+              <div style={{ background: "#121212", borderRadius: "12px", padding: "16px 24px", textAlign: "center" }}>
+                <p style={{ fontSize: "24px", fontWeight: "700", color: "#1db954" }}>{likedSongs.length}</p>
+                <p style={{ fontSize: "13px", color: "#aaa" }}>Liked</p>
+              </div>
+              <div style={{ background: "#121212", borderRadius: "12px", padding: "16px 24px", textAlign: "center" }}>
+                <p style={{ fontSize: "24px", fontWeight: "700", color: "#1db954" }}>{playlists.length}</p>
+                <p style={{ fontSize: "13px", color: "#aaa" }}>Playlists</p>
+              </div>
             </div>
             <button onClick={() => signOut(auth)} style={{ marginTop: "24px", padding: "14px 32px", borderRadius: "50px", border: "1px solid #333", background: "transparent", color: "white", fontSize: "15px", cursor: "pointer", fontWeight: "600" }}>Log Out</button>
           </div>
@@ -335,8 +483,8 @@ function Home({ user }) {
           <span style={{ fontSize: "10px" }}>Search</span>
         </div>
         <div onClick={() => setPage("library")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", color: page === "library" ? "#1db954" : "#aaa" }}>
-          <span style={{ fontSize: "20px" }}>❤️</span>
-          <span style={{ fontSize: "10px" }}>Liked</span>
+          <span style={{ fontSize: "20px" }}>📚</span>
+          <span style={{ fontSize: "10px" }}>Library</span>
         </div>
         <div onClick={() => setPage("profile")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", color: page === "profile" ? "#1db954" : "#aaa" }}>
           <span style={{ fontSize: "20px" }}>👤</span>
