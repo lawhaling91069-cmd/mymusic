@@ -6,68 +6,82 @@ function Login({ onLogin, onSignup }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
+    setError("");
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
       onLogin();
     } catch (err) {
       setError("Wrong email or password. Try again!");
     }
+    setLoading(false);
   }
 
   return (
-    <div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif" }}>
-      <div style={{ background: "#121212", padding: "48px", borderRadius: "16px", width: "100%", maxWidth: "400px" }}>
+    <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif", padding: "20px" }}>
+      <div style={{ width: "100%", maxWidth: "380px" }}>
 
-        <h1 style={{ color: "#1db954", textAlign: "center", fontSize: "28px", marginBottom: "8px" }}>🎵 MyMusic</h1>
-        <p style={{ color: "#aaa", textAlign: "center", marginBottom: "32px" }}>Log in to continue</p>
+        {/* LOGO */}
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "8px" }}>🎵</div>
+          <h1 style={{ fontSize: "28px", fontWeight: "700", letterSpacing: "-0.5px" }}>MyMusic</h1>
+          <p style={{ color: "#b3b3b3", fontSize: "14px", marginTop: "8px" }}>Millions of songs. Free.</p>
+        </div>
 
         {error && (
-          <p style={{ color: "#ff4444", textAlign: "center", marginBottom: "16px", fontSize: "13px" }}>{error}</p>
+          <div style={{ background: "#e91429", color: "white", padding: "12px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px", textAlign: "center" }}>{error}</div>
         )}
 
         <div style={{ marginBottom: "16px" }}>
-          <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Email</p>
+          <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "8px", color: "#fff" }}>Email address</label>
           <input
             type="email"
-            placeholder="Enter your email"
+            placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%", padding: "12px 16px", borderRadius: "8px", border: "1px solid #333", background: "#1a1a1a", color: "white", fontSize: "14px", outline: "none" }}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            style={{ width: "100%", padding: "14px 16px", borderRadius: "6px", border: "1px solid #727272", background: "#121212", color: "white", fontSize: "15px", outline: "none", transition: "border-color 0.15s" }}
+            onFocus={(e) => e.target.style.borderColor = "#fff"}
+            onBlur={(e) => e.target.style.borderColor = "#727272"}
           />
         </div>
 
         <div style={{ marginBottom: "24px" }}>
-          <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Password</p>
+          <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "8px", color: "#fff" }}>Password</label>
           <input
             type="password"
-            placeholder="Enter your password"
+            placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", padding: "12px 16px", borderRadius: "8px", border: "1px solid #333", background: "#1a1a1a", color: "white", fontSize: "14px", outline: "none" }}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            style={{ width: "100%", padding: "14px 16px", borderRadius: "6px", border: "1px solid #727272", background: "#121212", color: "white", fontSize: "15px", outline: "none", transition: "border-color 0.15s" }}
+            onFocus={(e) => e.target.style.borderColor = "#fff"}
+            onBlur={(e) => e.target.style.borderColor = "#727272"}
           />
         </div>
 
         <button
           onClick={handleLogin}
-          style={{ width: "100%", padding: "14px", borderRadius: "50px", border: "none", background: "#1db954", color: "black", fontSize: "16px", fontWeight: "700", cursor: "pointer" }}>
-          Log In
+          disabled={loading}
+          style={{ width: "100%", padding: "15px", borderRadius: "50px", border: "none", background: loading ? "#1ed760aa" : "#1ed760", color: "#000", fontSize: "15px", fontWeight: "700", cursor: "pointer", letterSpacing: "0.5px", transition: "transform 0.1s, background 0.15s" }}
+          onMouseEnter={(e) => e.target.style.transform = "scale(1.02)"}
+          onMouseLeave={(e) => e.target.style.transform = "scale(1)"}
+        >
+          {loading ? "Logging in..." : "Log In"}
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "24px 0" }}>
-          <div style={{ flex: 1, height: "1px", background: "#333" }}></div>
-          <p style={{ color: "#aaa", fontSize: "13px" }}>or</p>
-          <div style={{ flex: 1, height: "1px", background: "#333" }}></div>
+          <div style={{ flex: 1, height: "1px", background: "#292929" }} />
+          <span style={{ color: "#727272", fontSize: "13px" }}>or</span>
+          <div style={{ flex: 1, height: "1px", background: "#292929" }} />
         </div>
 
-        <p style={{ color: "#aaa", textAlign: "center", fontSize: "14px" }}>
+        <p style={{ color: "#b3b3b3", textAlign: "center", fontSize: "14px" }}>
           Don't have an account?{" "}
-          <span
-            onClick={onSignup}
-            style={{ color: "#1db954", cursor: "pointer", fontWeight: "600" }}>
-            Sign up
-          </span>
+          <span onClick={onSignup} style={{ color: "#fff", cursor: "pointer", fontWeight: "600", textDecoration: "underline" }}>Sign up</span>
         </p>
 
       </div>
