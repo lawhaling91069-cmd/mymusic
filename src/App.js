@@ -128,10 +128,11 @@ function Home({ user }) {
     } catch (e) {}
   }
 
-  async function fetchAndPlay(song) {
+ async function fetchAndPlay(song) {
     setCurrentSong(song);
     setCurrentTime(0);
     setDuration(0);
+    setIsPlaying(false);
     fetchRelated(song);
     setRecentlyPlayed((prev) => {
       const filtered = prev.filter((s) => s.trackId !== song.trackId);
@@ -140,9 +141,14 @@ function Home({ user }) {
       return updated;
     });
     try {
-      const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(song.trackName + " " + song.artistName)}&key=AIzaSyBu33AChZxQMJUoWwn0JGBhbK2arc190Mk&maxResults=1&type=video`);
+      const searchQuery = `${song.trackName} ${song.artistName}`;
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&key=AIzaSyBu33AChZxQMJUoWwn0JGBhbK2arc190Mk&maxResults=1&type=video&videoCategoryId=10`
+      );
       const data = await res.json();
-      if (data.items && data.items.length > 0) setVideoId(data.items[0].id.videoId);
+      if (data.items && data.items.length > 0) {
+        setVideoId(data.items[0].id.videoId);
+      }
     } catch (e) {}
   }
 
@@ -291,11 +297,7 @@ function Home({ user }) {
             <button onClick={playNext} style={{ background: "none", border: "none", color: "white", fontSize: "28px", cursor: "pointer" }}>⏭</button>
             <button onClick={() => setRepeat(!repeat)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: repeat ? "#1db954" : "#b3b3b3" }}>🔁</button>
           </div>
-          <div style={{ padding: "0 24px 24px", display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-            <span>🔈</span>
-            <input type="range" min="0" max="100" value={volume} onChange={(e) => { const v = Number(e.target.value); setVolume(v); playerRef.current?.setVolume(v); }} style={{ flex: 1, accentColor: "#1db954" }} />
-            <span>🔊</span>
-          </div>
+         
           <div style={{ padding: "0 20px 120px", flexShrink: 0 }}>
             <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Related Songs</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
