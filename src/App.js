@@ -25,6 +25,10 @@ function Home({ user }) {
   const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [relatedSongs, setRelatedSongs] = useState([]);
   const [likedSongs, setLikedSongs] = useState(() => {
+ const [recentlyPlayed, setRecentlyPlayed] = useState(() => {
+    const saved = localStorage.getItem("recentlyPlayed");
+    return saved ? JSON.parse(saved) : [];
+  });
     const saved = localStorage.getItem("likedSongs");
     return saved ? JSON.parse(saved) : [];
   });
@@ -133,6 +137,12 @@ function Home({ user }) {
     setCurrentTime(0);
     setDuration(0);
     fetchRelated(song);
+    setRecentlyPlayed((prev) => {
+      const filtered = prev.filter((s) => s.trackId !== song.trackId);
+      const updated = [song, ...filtered].slice(0, 20);
+      localStorage.setItem("recentlyPlayed", JSON.stringify(updated));
+      return updated;
+    });
     try {
       const searchQuery = `${song.trackName} ${song.artistName}`;
       const res = await fetch(
@@ -206,7 +216,15 @@ function Home({ user }) {
     if (e.key === "Enter") searchSongs();
   }
 
-  function stopSong() {
+ function stopSong() {
+    try {
+      if (playerRef.current) {
+        playerRef.current.stopVideo();
+        playerRef.current = null;
+      }
+    } catch (e) {
+      console.log("Stop error:", e);
+    }
     setCurrentSong(null);
     setVideoId(null);
     setIsPlaying(false);
@@ -429,7 +447,29 @@ function Home({ user }) {
           <div>
             <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px", letterSpacing: "-0.5px" }}>Good evening 👋</h1>
             <p style={{ color: "#b3b3b3", fontSize: "14px", marginBottom: "28px" }}>What do you want to listen to today?</p>
-
+{/* RECENTLY PLAYED */}
+            {recentlyPlayed.length > 0 && (
+              <div style={{ marginBottom: "32px" }}>
+                <h2 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Recently Played</h2>
+                <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "8px" }}>
+                  {recentlyPlayed.slice(0, 10).map((song) => (
+                    <div
+                      key={song.trackId}
+                      onClick={() => playSong(song, recentlyPlayed)}
+                      style={{ flexShrink: 0, width: "140px", cursor: "pointer" }}
+                    >
+                      <img
+                        src={song.artworkUrl100}
+                        alt={song.trackName}
+                        style={{ width: "140px", height: "140px", borderRadius: "8px", marginBottom: "8px", display: "block" }}
+                      />
+                      <div style={{ fontSize: "13px", fontWeight: "600", color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.trackName}</div>
+                      <div style={{ fontSize: "12px", color: "#b3b3b3", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.artistName}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <h2 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Browse Categories</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "32px" }}>
               {[
@@ -571,7 +611,7 @@ function Home({ user }) {
             <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "#1db954", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px" }}>👤</div>
             <h2 style={{ fontSize: "20px", fontWeight: "700" }}>{user.email}</h2>
             <p style={{ color: "#b3b3b3", fontSize: "13px" }}>MyMusic Member</p>
-            <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+           <div style={{ display: "flex", gap: "12px", marginTop: "8px", flexWrap: "wrap", justifyContent: "center" }}>
               <div style={{ background: "#121212", borderRadius: "8px", padding: "16px 24px", textAlign: "center", minWidth: "100px" }}>
                 <p style={{ fontSize: "22px", fontWeight: "700", color: "#1db954" }}>{likedSongs.length}</p>
                 <p style={{ fontSize: "12px", color: "#b3b3b3", marginTop: "4px" }}>Liked Songs</p>
@@ -579,6 +619,10 @@ function Home({ user }) {
               <div style={{ background: "#121212", borderRadius: "8px", padding: "16px 24px", textAlign: "center", minWidth: "100px" }}>
                 <p style={{ fontSize: "22px", fontWeight: "700", color: "#1db954" }}>{playlists.length}</p>
                 <p style={{ fontSize: "12px", color: "#b3b3b3", marginTop: "4px" }}>Playlists</p>
+              </div>
+              <div style={{ background: "#121212", borderRadius: "8px", padding: "16px 24px", textAlign: "center", minWidth: "100px" }}>
+                <p style={{ fontSize: "22px", fontWeight: "700", color: "#1db954" }}>{recentlyPlayed.length}</p>
+                <p style={{ fontSize: "12px", color: "#b3b3b3", marginTop: "4px" }}>Played</p>
               </div>
             </div>
             <button onClick={() => signOut(auth)} style={{ marginTop: "24px", padding: "14px 32px", borderRadius: "50px", border: "1px solid #727272", background: "transparent", color: "white", fontSize: "14px", cursor: "pointer", fontWeight: "600" }}>Log Out</button>
