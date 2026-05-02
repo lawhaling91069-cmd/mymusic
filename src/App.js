@@ -128,7 +128,7 @@ function Home({ user }) {
     } catch (e) {}
   }
 
-  async function fetchAndPlay(song) {
+ async function fetchAndPlay(song) {
     setCurrentSong(song);
     setCurrentTime(0);
     setDuration(0);
@@ -141,11 +141,21 @@ function Home({ user }) {
       return updated;
     });
     try {
-      const searchQuery = `${song.trackName} ${song.artistName}`;
-      const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&key=AIzaSyBu33AChZxQMJUoWwn0JGBhbK2arc190Mk&maxResults=1&type=video&videoCategoryId=10`);
+      const searchQuery = `${song.trackName} ${song.artistName} audio`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&key=AIzaSyBu33AChZxQMJUoWwn0JGBhbK2arc190Mk&maxResults=1&type=video`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
       const data = await res.json();
-      if (data.items && data.items.length > 0) setVideoId(data.items[0].id.videoId);
-    } catch (e) {}
+      if (data.items && data.items.length > 0) {
+        setVideoId(data.items[0].id.videoId);
+      }
+    } catch (e) {
+      console.log("Fetch error:", e);
+    }
   }
 
   async function playSong(song, queue) {

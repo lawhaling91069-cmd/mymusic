@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 
 let globalPlayer = null;
+let isAPIReady = false;
+const pendingCallbacks = [];
 
 function YouTubePlayer({ videoId, onReady }) {
   const containerRef = useRef(null);
@@ -8,16 +10,19 @@ function YouTubePlayer({ videoId, onReady }) {
   useEffect(() => {
     if (!videoId) return;
 
-    // Destroy any existing player first
-    if (globalPlayer) {
-      try {
-        globalPlayer.destroy();
-        globalPlayer = null;
-      } catch (e) {}
-    }
-
     function createPlayer() {
       if (!containerRef.current) return;
+
+      if (globalPlayer) {
+        try {
+          globalPlayer.loadVideoById(videoId);
+          globalPlayer.playVideo();
+          if (onReady) onReady(globalPlayer);
+          return;
+        } catch (e) {
+          globalPlayer = null;
+        }
+      }
 
       const div = document.createElement("div");
       containerRef.current.innerHTML = "";
@@ -27,7 +32,11 @@ function YouTubePlayer({ videoId, onReady }) {
         height: "0",
         width: "0",
         videoId: videoId,
-        playerVars: { autoplay: 1, controls: 0 },
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          playsinline: 1,
+        },
         events: {
           onReady: (e) => {
             e.target.playVideo();
@@ -37,15 +46,20 @@ function YouTubePlayer({ videoId, onReady }) {
       });
     }
 
-    if (window.YT && window.YT.Player) {
+    if (isAPIReady) {
       createPlayer();
     } else {
-      window.onYouTubeIframeAPIReady = createPlayer;
+      pendingCallbacks.push(createPlayer);
+      if (!window.onYouTubeIframeAPIReady) {
+        window.onYouTubeIframeAPIReady = () => {
+          isAPIReady = true;
+          pendingCallbacks.forEach((cb) => cb());
+          pendingCallbacks.length = 0;
+        };
+      }
     }
 
-    return () => {
-      // Don't destroy on cleanup — let next song handle it
-    };
+    return () => {};
   }, [videoId]);
 
   return <div ref={containerRef} style={{ display: "none" }} />;
