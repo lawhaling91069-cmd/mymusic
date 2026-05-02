@@ -1,69 +1,57 @@
-import { useEffect, useRef } from "react";
-
-let globalPlayer = null;
-let apiReady = false;
+import { useEffect } from "react";
 
 function YouTubePlayer({ videoId, onReady }) {
-  const divRef = useRef(null);
 
   useEffect(() => {
     if (!videoId) return;
 
-    function startPlayer() {
-      if (globalPlayer && globalPlayer.loadVideoById) {
-        try {
-          globalPlayer.loadVideoById(videoId);
-          setTimeout(() => {
-            try {
-              globalPlayer.playVideo();
-              if (onReady) onReady(globalPlayer);
-            } catch (e) {}
-          }, 500);
-          return;
-        } catch (e) {
-          globalPlayer = null;
-        }
-      }
+    const iframeId = "yt-iframe-player";
+    let existing = document.getElementById(iframeId);
+    if (existing) existing.remove();
 
-      if (!divRef.current) return;
-      const el = document.createElement("div");
-      divRef.current.innerHTML = "";
-      divRef.current.appendChild(el);
+    const iframe = document.createElement("iframe");
+    iframe.id = iframeId;
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&enablejsapi=1&origin=${window.location.origin}`;
+    iframe.allow = "autoplay";
+    iframe.style.position = "fixed";
+    iframe.style.bottom = "-100px";
+    iframe.style.left = "-100px";
+    iframe.style.width = "1px";
+    iframe.style.height = "1px";
+    iframe.style.opacity = "0";
+    document.body.appendChild(iframe);
 
-      globalPlayer = new window.YT.Player(el, {
-        height: "1",
-        width: "1",
-        videoId: videoId,
-        playerVars: { autoplay: 1, controls: 0, playsinline: 1 },
-        events: {
-          onReady: (e) => {
-            try {
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScript = document.getElementsByTagName("script")[0];
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      firstScript.parentNode.insertBefore(tag, firstScript);
+    }
+
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (window.YT && window.YT.Player) {
+        clearInterval(interval);
+        const player = new window.YT.Player(iframeId, {
+          events: {
+            onReady: (e) => {
+              e.target.setVolume(80);
               e.target.playVideo();
               if (onReady) onReady(e.target);
-            } catch (err) {}
+            },
           },
-          onStateChange: (e) => {
-            if (e.data === window.YT.PlayerState.CUED) {
-              try { e.target.playVideo(); } catch (err) {}
-            }
-          }
-        },
-      });
-    }
+        });
+      }
+      if (attempts > 20) clearInterval(interval);
+    }, 300);
 
-    if (apiReady) {
-      startPlayer();
-    } else {
-      const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        apiReady = true;
-        if (prev) prev();
-        startPlayer();
-      };
-    }
+    return () => {
+      clearInterval(interval);
+    };
   }, [videoId]);
 
-  return <div ref={divRef} style={{ position: "fixed", bottom: "-10px", left: "-10px", width: "1px", height: "1px", opacity: 0 }} />;
+  return null;
 }
 
 export default YouTubePlayer;
