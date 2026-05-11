@@ -248,6 +248,8 @@ ${pianoInfo}
     setShowLyrics(false);
     fetchRelated(song);
     fetchLyrics(song);
+    fetchSongKey(song);
+    setShowTab("related");
     setRecentlyPlayed((prev) => {
       const filtered = prev.filter((s) => s.trackId !== song.trackId);
       const updated = [song, ...filtered].slice(0, 20);
