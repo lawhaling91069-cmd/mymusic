@@ -29,6 +29,9 @@ function Home({ user }) {
   const [lyrics, setLyrics] = useState("");
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [songKey, setSongKey] = useState(null);
+  const [songKeyLoading, setSongKeyLoading] = useState(false);
+  const [showTab, setShowTab] = useState("related");
   const [likedSongs, setLikedSongs] = useState(() => {
     const saved = localStorage.getItem("likedSongs");
     return saved ? JSON.parse(saved) : [];
@@ -121,6 +124,46 @@ function Home({ user }) {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? "0" : ""}${s}`;
+  }
+
+ async function fetchSongKey(song) {
+    setSongKey(null);
+    setSongKeyLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `For the song "${song.trackName}" by "${song.artistName}", provide:
+1. The original key (e.g. C Major, A Minor)
+2. The chord progression (e.g. C - G - Am - F)
+3. Notes in that key (e.g. C D E F G A B)
+4. Basic guitar chord shapes
+5. Piano keys to press
+
+Keep it simple and beginner friendly. Use these exact headers:
+🎵 ORIGINAL KEY:
+🎸 CHORD PROGRESSION:
+🎼 NOTES IN KEY:
+🎸 GUITAR CHORDS:
+🎹 PIANO NOTES:`
+          }]
+        })
+      });
+      const data = await res.json();
+      if (data.content && data.content[0]) {
+        setSongKey(data.content[0].text);
+      } else {
+        setSongKey("Could not load key information.");
+      }
+    } catch (e) {
+      setSongKey("Could not load key information.");
+    }
+    setSongKeyLoading(false);
   }
 
   async function fetchLyrics(song) {
