@@ -359,12 +359,60 @@ Keep it simple and beginner friendly. Use these exact headers:
             <button onClick={() => setRepeat(!repeat)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: repeat ? "#1db954" : "#b3b3b3" }}>🔁</button>
           </div>
 
-          {/* LYRICS / RELATED TOGGLE */}
+         {/* TABS */}
           <div style={{ padding: "0 20px 16px", flexShrink: 0 }}>
-            <div style={{ display: "flex", background: "#282828", borderRadius: "50px", padding: "4px" }}>
-              <button onClick={() => setShowLyrics(false)} style={{ flex: 1, padding: "8px", borderRadius: "50px", border: "none", background: !showLyrics ? "#fff" : "transparent", color: !showLyrics ? "#000" : "#b3b3b3", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>Related Songs</button>
-              <button onClick={() => setShowLyrics(true)} style={{ flex: 1, padding: "8px", borderRadius: "50px", border: "none", background: showLyrics ? "#fff" : "transparent", color: showLyrics ? "#000" : "#b3b3b3", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>Lyrics</button>
+            <div style={{ display: "flex", background: "#282828", borderRadius: "50px", padding: "4px", gap: "2px" }}>
+              <button onClick={() => setShowTab("related")} style={{ flex: 1, padding: "8px 4px", borderRadius: "50px", border: "none", background: showTab === "related" ? "#fff" : "transparent", color: showTab === "related" ? "#000" : "#b3b3b3", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}>Related</button>
+              <button onClick={() => setShowTab("lyrics")} style={{ flex: 1, padding: "8px 4px", borderRadius: "50px", border: "none", background: showTab === "lyrics" ? "#fff" : "transparent", color: showTab === "lyrics" ? "#000" : "#b3b3b3", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}>Lyrics</button>
+              <button onClick={() => setShowTab("key")} style={{ flex: 1, padding: "8px 4px", borderRadius: "50px", border: "none", background: showTab === "key" ? "#fff" : "transparent", color: showTab === "key" ? "#000" : "#b3b3b3", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}>🎵 Key</button>
             </div>
+          </div>
+
+          <div style={{ padding: "0 20px 120px", flexShrink: 0 }}>
+
+            {showTab === "related" && (
+              <>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Related Songs</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {relatedSongs.map((song) => (
+                    <div key={song.trackId} onClick={() => playSong(song, relatedSongs)} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", borderRadius: "6px", cursor: "pointer", background: currentSong?.trackId === song.trackId ? "#ffffff15" : "transparent" }}>
+                      <img src={song.artworkUrl100} alt={song.trackName} style={{ width: "48px", height: "48px", borderRadius: "4px", flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: "500", fontSize: "14px", color: currentSong?.trackId === song.trackId ? "#1db954" : "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.trackName}</div>
+                        <div style={{ fontSize: "12px", color: "#b3b3b3", marginTop: "2px" }}>{song.artistName}</div>
+                      </div>
+                      <span style={{ fontSize: "14px", color: "#b3b3b3" }}>▶</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {showTab === "lyrics" && (
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Lyrics</h3>
+                {lyricsLoading ? (
+                  <p style={{ color: "#b3b3b3", fontSize: "14px" }}>Loading lyrics...</p>
+                ) : (
+                  <p style={{ color: "#e0e0e0", fontSize: "15px", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>{lyrics}</p>
+                )}
+              </div>
+            )}
+
+            {showTab === "key" && (
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "4px" }}>Song Key & Chords</h3>
+                <p style={{ color: "#b3b3b3", fontSize: "12px", marginBottom: "16px" }}>Play along with {currentSong?.trackName}</p>
+                {songKeyLoading ? (
+                  <p style={{ color: "#b3b3b3", fontSize: "14px" }}>🎵 Analyzing song key...</p>
+                ) : (
+                  <div style={{ background: "#282828", borderRadius: "12px", padding: "16px" }}>
+                    <p style={{ color: "#e0e0e0", fontSize: "14px", lineHeight: "1.8", whiteSpace: "pre-wrap", fontFamily: "monospace" }}>{songKey}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
 
           <div style={{ padding: "0 20px 120px", flexShrink: 0 }}>
